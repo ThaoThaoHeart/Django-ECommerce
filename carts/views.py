@@ -9,6 +9,7 @@ def cart_id(request):
 	cart = request.session.session_key
 	if not cart:
 		request.session.create()
+		cart = request.session.session_key
 	return cart
 
 
@@ -42,12 +43,16 @@ def cart_add(request, product_id):
 	quantity_to_add = 1
 	if request.method == "POST":
 		raw_quantity = request.POST.get("quantity", 1)
-		quantity_to_add = max(1, int(raw_quantity))
+		try:
+			quantity_to_add = max(1, int(raw_quantity))
+		except (TypeError, ValueError):
+			quantity_to_add = 1
 
 	cart, _ = Cart.objects.get_or_create(cart_id=cart_id(request))
 	cart_item, _ = CartItem.objects.get_or_create(
 		product=product,
 		cart=cart,
+		defaults={"quantity": 0},
 	)
 
 	cart_item.quantity = min(cart_item.quantity + quantity_to_add, product.stock)
@@ -84,7 +89,10 @@ def cart_update(request, product_id):
 
 	product = get_object_or_404(Product, id=product_id, is_active=True)
 	raw_quantity = request.POST.get("quantity", 1)
-	quantity = min(max(1, int(raw_quantity)), product.stock)
+	try:
+		quantity = min(max(1, int(raw_quantity)), product.stock)
+	except (TypeError, ValueError):
+		quantity = 1
 
 	try:
 		cart = Cart.objects.get(cart_id=cart_id(request))
