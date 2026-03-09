@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}Products - Django E-commerce{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">Products</h1>
+
+    <!-- Filters Section -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+        <!-- Sidebar -->
+        <div class="md:col-span-1">
+            <!-- Search -->
+            <form method="get" class="mb-6">
+                <input 
+                    type="text" 
+                    name="search" 
+                    placeholder="Search products..." 
+                    value="{{ search_query }}"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                >
+                <button type="submit" class="w-full mt-2 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700">
+                    Search
+                </button>
+            </form>
+
+            <!-- Category Filter -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-4">Categories</h3>
+                <div class="space-y-2">
+                    <a 
+                        href="{% url 'catalog:product_list' %}" 
+                        class="block px-3 py-2 rounded {% if not selected_category %}bg-red-100 text-red-600 font-semibold{% else %}text-gray-700 hover:bg-gray-100{% endif %}"
+                    >
+                        All Categories
+                    </a>
+                    {% for category in categories %}
+                    <a 
+                        href="{% url 'catalog:product_list' %}?category={{ category.slug }}" 
+                        class="block px-3 py-2 rounded {% if selected_category == category.slug %}bg-red-100 text-red-600 font-semibold{% else %}text-gray-700 hover:bg-gray-100{% endif %}"
+                    >
+                        {{ category.name }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Products Grid -->
+        <div class="md:col-span-3">
+            {% if products %}
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    {% for product in products %}
+                    <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition h-full flex flex-col">
+                        <!-- Product Image -->
+                        {% if product.image %}
+                            <div class="w-full h-48 bg-white flex items-center justify-center p-2">
+                                <img src="{{ product.image.url }}" alt="{{ product.name }}" class="w-full h-full object-contain">
+                            </div>
+                        {% else %}
+                            <div class="w-full h-48 bg-gray-200 flex items-center justify-center">
+                                <span class="text-gray-400">No image</span>
+                            </div>
+                        {% endif %}
+
+                        <!-- Product Info -->
+                        <div class="p-4 flex flex-col flex-1">
+                            <a href="{% url 'catalog:product_detail' product.pk %}" class="text-lg font-semibold text-gray-800 hover:text-red-600">
+                                {{ product.name }}
+                            </a>
+                            
+                            <p class="text-sm text-gray-600 mt-1">
+                                {% with category=product.get_category %}
+                                    {% if category %}{{ category.name }}{% else %}Uncategorized{% endif %}
+                                {% endwith %}
+                            </p>
+                            
+                            <p class="text-gray-600 text-sm mt-2 line-clamp-2">
+                                {{ product.description }}
+                            </p>
+
+                            <!-- Price and Stock -->
+                            <div class="mt-4 flex justify-between items-center">
+                                <span class="text-xl font-bold text-red-600">${{ product.price }}</span>
+                                {% if product.is_in_stock %}
+                                    <span class="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded">
+                                        In Stock
+                                    </span>
+                                {% else %}
+                                    <span class="text-xs font-semibold text-red-600 bg-red-100 px-2 py-1 rounded">
+                                        Out of Stock
+                                    </span>
+                                {% endif %}
+                            </div>
+
+                            <!-- View Button -->
+                            <a 
+                                href="{% url 'catalog:product_detail' product.pk %}" 
+                                class="w-full mt-auto block text-center bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition"
+                            >
+                                View Details
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Pagination -->
+                {% if page_obj.has_other_pages %}
+                <nav class="flex justify-center items-center space-x-2 mt-8">
+                    {% if page_obj.has_previous %}
+                        <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">
+                            First
+                        </a>
+                        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">
+                            Previous
+                        </a>
+                    {% endif %}
+
+                    <span class="px-4 py-2">
+                        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    </span>
+
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">
+                            Next
+                        </a>
+                        <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100">
+                            Last
+                        </a>
+                    {% endif %}
+                </nav>
+                {% endif %}
+            {% else %}
+                <div class="text-center py-12">
+                    <p class="text-gray-500 text-lg">No products found.</p>
+                    {% if search_query or selected_category %}
+                        <a href="{% url 'catalog:product_list' %}" class="text-red-600 hover:underline mt-2">
+                            Clear filters
+                        </a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

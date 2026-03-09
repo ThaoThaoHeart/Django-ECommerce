@@ -1,0 +1,113 @@
+.venv/
+env/
+
+__pycache__/
+*.py[cod]
+*.sqlite3
+
+.DS_Store
+
+.vscode/
+.idea/
+MVP.txt
+mvp.txt
+
+# mac
+.DS_Store
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+.pytest_cache
+*.py[cod]
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+.idea/*
+env/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*,cover
+
+# Translations
+*.mo
+*.pot
+
+# Postgres
+pg/*
+pg_data/*
+
+# Static build files
+colossus/frontend/build
+
+colossus/frontend/.eslintcache
+
+# Django stuff:
+*.log
+colossus/static/
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+#vagrant
+vm/.vagrant*
+vm36/.vagrant/*
+peony/.noseids
+
+media/*
+.coverage
+colossus/cover/*
+colossus/peony-old/*
+colossus/htmlcov/*
+htmlcov/*
+temp_deploy/*
+
+colossus/frontend/node_modules/*
+*/node_modules/*
+node_modules
+
+*npm-debug.log*
+
+*.env
+*.env
+*.swp
+
+colossus/celerybeat-schedule
+*.pytest_cache
+*.vscode
+*.js.swp
