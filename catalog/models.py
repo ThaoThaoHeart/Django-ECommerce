@@ -28,6 +28,11 @@ class Product(models.Model):
 
     def is_in_stock(self):
         return self.stock > 0
+    
+    def get_category(self):
+        if not self.category:
+            return None
+        return Category.objects.filter(name__iexact=self.category).first()
 
 class Variation(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)

@@ -1,14 +1,13 @@
-from django.shortcuts import get_object_or_404, render
+from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator
+from django.shortcuts import get_object_or_404, redirect, render
 
+from .forms import ProductForm
 from .models import Category, Product
 
 
-def product_list(request):
+def filter_products(selected_category, search_query):
 	products = Product.objects.filter(is_active=True)
-	categories = Category.objects.all().order_by("name")
-	selected_category = request.GET.get("category", "").strip()
-	search_query = request.GET.get("search", "").strip()
 
 	if selected_category:
 		category_obj = Category.objects.filter(slug=selected_category).first()
@@ -20,7 +19,16 @@ def product_list(request):
 	if search_query:
 		products = products.filter(name__icontains=search_query)
 
-	paginator = Paginator(products.order_by("name"), 9)
+	return products.order_by("name")
+
+
+def product_list(request):
+	categories = Category.objects.all().order_by("name")
+	selected_category = request.GET.get("category", "").strip()
+	search_query = request.GET.get("search", "").strip()
+	products = filter_products(selected_category, search_query)
+
+	paginator = Paginator(products, 9)
 	page_number = request.GET.get("page")
 	page_obj = paginator.get_page(page_number)
 
@@ -40,3 +48,42 @@ def product_detail(request, pk):
 		"product": product,
 	}
 	return render(request, "catalog/product_detail.html", context)
+
+
+@staff_member_required
+def product_create(request):
+	if request.method == "POST":
+		form = ProductForm(request.POST, request.FILES)
+		if form.is_valid():
+			product = form.save()
+			return redirect("catalog:product_detail", pk=product.pk)
+	else:
+		form = ProductForm()
+
+	context = {
+		"form": form,
+		"page_title": "Create Product",
+		"submit_label": "Create Product",
+	}
+	return render(request, "catalog/product_form.html", context)
+
+
+@staff_member_required
+def product_update(request, pk):
+	product = get_object_or_404(Product, pk=pk)
+
+	if request.method == "POST":
+		form = ProductForm(request.POST, request.FILES, instance=product)
+		if form.is_valid():
+			product = form.save()
+			return redirect("catalog:product_detail", pk=product.pk)
+	else:
+		form = ProductForm(instance=product)
+
+	context = {
+		"form": form,
+		"product": product,
+		"page_title": "Edit Product",
+		"submit_label": "Save Changes",
+	}
+	return render(request, "catalog/product_form.html", context)
