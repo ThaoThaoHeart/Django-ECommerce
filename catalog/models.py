@@ -1,5 +1,5 @@
 from django.db import models
-
+from .constants import VARIATION_CATEGORY
 
 class Category(models.Model):
     name = models.CharField(max_length=200, unique=True)
@@ -28,3 +28,12 @@ class Product(models.Model):
 
     def is_in_stock(self):
         return self.stock > 0
+
+class Variation(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    variation_category = models.CharField(max_length=100, choices=VARIATION_CATEGORY)
+    variation_value = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.product.name
