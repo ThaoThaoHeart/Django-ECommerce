@@ -1,8 +1,8 @@
-from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator
-from django.shortcuts import get_object_or_404, redirect, render
-
-from .forms import ProductForm
+from django.views.generic import FormView
+from django.shortcuts import get_object_or_404, render
+from django.urls import reverse_lazy
+from carts.forms import CartAddForm
 from .models import Category, Product
 
 
@@ -42,48 +42,21 @@ def product_list(request):
 	return render(request, "catalog/product_list.html", context)
 
 
-def product_detail(request, pk):
-	product = get_object_or_404(Product, pk=pk, is_active=True)
-	context = {
-		"product": product,
-	}
-	return render(request, "catalog/product_detail.html", context)
+class ProductDetailView(FormView):
+	template_name = "catalog/product_detail.html"
+	form_class = CartAddForm
+	success_url = reverse_lazy("carts:cart_detail")
 
+	def get_product(self):
+		return get_object_or_404(Product, pk=self.kwargs["pk"], is_active=True)
 
-@staff_member_required
-def product_create(request):
-	if request.method == "POST":
-		form = ProductForm(request.POST, request.FILES)
-		if form.is_valid():
-			product = form.save()
-			return redirect("catalog:product_detail", pk=product.pk)
-	else:
-		form = ProductForm()
+	def get_form_kwargs(self):
+		kwargs = super().get_form_kwargs()
+		kwargs["product"] = self.get_product()
+		return kwargs
 
-	context = {
-		"form": form,
-		"page_title": "Create Product",
-		"submit_label": "Create Product",
-	}
-	return render(request, "catalog/product_form.html", context)
+	def get_context_data(self, **kwargs):
+		context = super().get_context_data(**kwargs)
+		context["product"] = self.get_product()
+		return context
 
-
-@staff_member_required
-def product_update(request, pk):
-	product = get_object_or_404(Product, pk=pk)
-
-	if request.method == "POST":
-		form = ProductForm(request.POST, request.FILES, instance=product)
-		if form.is_valid():
-			product = form.save()
-			return redirect("catalog:product_detail", pk=product.pk)
-	else:
-		form = ProductForm(instance=product)
-
-	context = {
-		"form": form,
-		"product": product,
-		"page_title": "Edit Product",
-		"submit_label": "Save Changes",
-	}
-	return render(request, "catalog/product_form.html", context)
