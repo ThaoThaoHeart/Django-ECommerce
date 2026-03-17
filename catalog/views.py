@@ -1,13 +1,14 @@
 from django.core.paginator import Paginator
-from django.views.generic import FormView
-from django.shortcuts import get_object_or_404, render
-from django.urls import reverse_lazy
+from django.views.generic import DetailView
+from django.shortcuts import render
+from django.shortcuts import redirect
 from carts.forms import CartAddForm
+from carts.mixins import CartSessionMixin
+from carts.models import CartItem
 from .models import Category, Product
 
-
 def filter_products(selected_category, search_query):
-	products = Product.objects.filter(is_active=True)
+	products = Product.objects.filter(is_active=True).prefetch_related("variation_set")
 
 	if selected_category:
 		category_obj = Category.objects.filter(slug=selected_category).first()
@@ -42,21 +43,36 @@ def product_list(request):
 	return render(request, "catalog/product_list.html", context)
 
 
-class ProductDetailView(FormView):
+class ProductDetailView(CartSessionMixin, DetailView):
+	model = Product
 	template_name = "catalog/product_detail.html"
-	form_class = CartAddForm
-	success_url = reverse_lazy("carts:cart_detail")
-
-	def get_product(self):
-		return get_object_or_404(Product, pk=self.kwargs["pk"], is_active=True)
-
-	def get_form_kwargs(self):
-		kwargs = super().get_form_kwargs()
-		kwargs["product"] = self.get_product()
-		return kwargs
+	context_object_name = "product"
 
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)
-		context["product"] = self.get_product()
+		context.setdefault("form", CartAddForm(product=self.object))
 		return context
 
+	def post(self, request, *args, **kwargs):
+		self.object = self.get_object()
+		form = CartAddForm(request.POST, product=self.object)
+		if not form.is_valid():
+			return self.render_to_response(self.get_context_data(form=form))
+
+		cart_item, created = CartItem.objects.get_or_create(
+			cart=self.get_or_create_cart(),
+			product=self.object,
+			defaults={"quantity": 0},
+		)
+		cart_item.quantity = form.cleaned_data["quantity"] if created else cart_item.quantity + form.cleaned_data["quantity"]
+		cart_item.save()
+
+		selected_variations = [
+			value for key, value in form.cleaned_data.items()
+			if key.startswith("variation_") and value is not None
+		]
+		if selected_variations:
+			cart_item.variations.set(selected_variations)
+
+		return redirect("carts:cart_detail")
+	

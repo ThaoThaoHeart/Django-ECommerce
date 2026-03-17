@@ -35,9 +35,12 @@
                                     </button>
                                 </noscript>
                             </form>
-                            <a href="{% url 'carts:cart_remove_item' item.id %}" class="px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-black transition">
-                                Remove
-                            </a>
+                            <form method="post" action="{% url 'carts:cart_remove_item' item.id %}">
+                                {% csrf_token %}
+                                <button type="submit" class="px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-black transition">
+                                    Remove
+                                </button>
+                            </form>
                         </div>
                     </div>
                 {% endfor %}
@@ -52,6 +55,9 @@
                     <span class="font-bold text-gray-800">Total</span>
                     <span class="font-bold text-red-600">${{ total }}</span>
                 </div>
+                <a href="{% url 'login' %}" class="mt-4 inline-block w-full text-center bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition">
+                    Checkout
+                </a>
             </div>
         </div>
     {% else %}

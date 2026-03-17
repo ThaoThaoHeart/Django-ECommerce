@@ -1,21 +1,8 @@
-from django.shortcuts import get_object_or_404, redirect
-from django.views.generic import TemplateView, View, FormView
+from django.shortcuts import redirect
+from django.views.generic import DeleteView, RedirectView, TemplateView, UpdateView
 from django.urls import reverse_lazy
-from catalog.models import Product
-from .forms import CartAddForm
 from .models import Cart, CartItem
-
-
-class CartSessionMixin:
-	def get_cart_id(self):
-		cart = self.request.session.session_key
-		if not cart:
-			self.request.session.create()
-			cart = self.request.session.session_key
-		return cart
-
-	def get_cart(self):
-		return Cart.objects.get(cart_id=self.get_cart_id())
+from .mixins import CartSessionMixin
 
 
 class CartDetailView(CartSessionMixin, TemplateView):
@@ -48,57 +35,11 @@ class CartDetailView(CartSessionMixin, TemplateView):
 		return context
 
 
-class CartAddView(CartSessionMixin, FormView):
-	template_name = "carts/cart_detail.html"
-	form_class = CartAddForm
-	success_url = reverse_lazy("carts:cart_detail")
+class CartRemoveView(CartSessionMixin, RedirectView):
+	pattern_name = "carts:cart_detail"
 
-	def get_product(self):
-		return get_object_or_404(Product, id=self.kwargs["product_id"], is_active=True)
-
-	def get_form_kwargs(self):
-		kwargs = super().get_form_kwargs()
-		kwargs["product"] = self.get_product()
-		return kwargs
-
-	def form_valid(self, form):
-		product = self.get_product()
-		quantity_to_add = form.cleaned_data["quantity"]
-		selected_variations = form.cleaned_data.get("selected_variations", [])
-		selected_variation_ids = {variation.id for variation in selected_variations}
-		cart, _ = Cart.objects.get_or_create(cart_id=self.get_cart_id())
-
-		cart_item = None
-		existing_items = (
-			CartItem.objects.filter(product=product, cart=cart)
-			.prefetch_related("variations")
-		)
-		for item in existing_items:
-			item_variation_ids = set(item.variations.values_list("id", flat=True))
-			if item_variation_ids == selected_variation_ids:
-				cart_item = item
-				break
-
-		if cart_item is None:
-			cart_item = CartItem.objects.create(product=product, cart=cart, quantity=0)
-			if selected_variations:
-				cart_item.variations.set(selected_variations)
-
-		cart_item.quantity = min(cart_item.quantity + quantity_to_add, product.stock)
-
-		if cart_item.quantity > 0:
-			cart_item.save()
-		else:
-			cart_item.delete()
-
-		return super().form_valid(form)
-
-	def form_invalid(self, form):
-		return redirect("carts:cart_detail")
-
-
-class CartRemoveView(CartSessionMixin, View):
-	def get(self, request, item_id):
+	def get_redirect_url(self, *args, **kwargs):
+		item_id = kwargs["item_id"]
 		try:
 			cart = self.get_cart()
 			cart_item = CartItem.objects.select_related("product").get(id=item_id, cart=cart)
@@ -111,40 +52,49 @@ class CartRemoveView(CartSessionMixin, View):
 		except (Cart.DoesNotExist, CartItem.DoesNotExist):
 			pass
 
-		return redirect("carts:cart_detail")
+		return super().get_redirect_url(*args, **kwargs)
 
 
-class CartUpdateView(CartSessionMixin, View):
-	def post(self, request, item_id):
+class CartUpdateView(CartSessionMixin, UpdateView):
+	model = CartItem
+	fields = ["quantity"]
+	pk_url_kwarg = "item_id"
+	success_url = reverse_lazy("carts:cart_detail")
+
+	def get_queryset(self):
 		try:
 			cart = self.get_cart()
-			cart_item = CartItem.objects.select_related("product").get(id=item_id, cart=cart)
-		except (Cart.DoesNotExist, CartItem.DoesNotExist):
-			return redirect("carts:cart_detail")
+		except Cart.DoesNotExist:
+			return CartItem.objects.none()
+		return CartItem.objects.select_related("product").filter(cart=cart)
 
-		product = cart_item.product
-		raw_quantity = request.POST.get("quantity", 1)
+	def get(self, request, *args, **kwargs):
+		return redirect("carts:cart_detail")
+
+	def form_valid(self, form):
+		product = form.instance.product
+		raw_quantity = form.cleaned_data.get("quantity", 1)
 		try:
-			quantity = min(max(1, int(raw_quantity)), product.stock)
+			form.instance.quantity = min(max(1, int(raw_quantity)), product.stock)
 		except (TypeError, ValueError):
-			quantity = 1
+			form.instance.quantity = 1
+		return super().form_valid(form)
 
-		cart_item.quantity = quantity
-		cart_item.save()
-
-		return redirect("carts:cart_detail")
-
-	def get(self, request, item_id):
+	def form_invalid(self, form):
 		return redirect("carts:cart_detail")
 
 
-class CartRemoveItemView(CartSessionMixin, View):
-	def get(self, request, item_id):
+class CartRemoveItemView(CartSessionMixin, DeleteView):
+	model = CartItem
+	pk_url_kwarg = "item_id"
+	success_url = reverse_lazy("carts:cart_detail")
+
+	def get_queryset(self):
 		try:
 			cart = self.get_cart()
-			cart_item = CartItem.objects.get(id=item_id, cart=cart)
-			cart_item.delete()
 		except (Cart.DoesNotExist, CartItem.DoesNotExist):
-			pass
+			return CartItem.objects.none()
+		return CartItem.objects.filter(cart=cart)
 
+	def get(self, request, *args, **kwargs):
 		return redirect("carts:cart_detail")

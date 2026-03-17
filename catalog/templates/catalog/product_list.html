@@ -81,6 +81,22 @@
                                 {{ product.description }}
                             </p>
 
+                            <!-- Variations -->
+                            {% with variations=product.get_variations_by_category %}
+                            {% if variations %}
+                            <div class="mt-2 space-y-1">
+                                {% for category, values in variations.items %}
+                                    <p class="text-xs text-gray-500">
+                                        {{ category|title }}:
+                                        {% for v in values %}
+                                            {{ v.variation_value }}{% if not forloop.last %}, {% endif %}
+                                        {% endfor %}
+                                    </p>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            {% endwith %}
+
                             <!-- Price and Stock -->
                             <div class="mt-4 flex justify-between items-center">
                                 <span class="text-xl font-bold text-red-600">${{ product.price }}</span>

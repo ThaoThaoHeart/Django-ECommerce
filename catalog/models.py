@@ -34,6 +34,13 @@ class Product(models.Model):
             return None
         return Category.objects.filter(name__iexact=self.category).first()
 
+    def get_variations_by_category(self):
+        result = {}
+        for v in self.variation_set.filter(is_active=True):
+            result.setdefault(v.variation_category, []).append(v)
+        return result
+
+
 class Variation(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     variation_category = models.CharField(max_length=100, choices=VARIATION_CATEGORY)
@@ -41,4 +48,4 @@ class Variation(models.Model):
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.variation_category}"
+        return f"{self.variation_value}"
