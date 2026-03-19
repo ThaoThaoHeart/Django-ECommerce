@@ -1,8 +1,8 @@
 from django.shortcuts import redirect
 from django.views.generic import DeleteView, RedirectView, TemplateView, UpdateView
 from django.urls import reverse_lazy
-from .models import Cart, CartItem
 from .mixins import CartSessionMixin
+from .models import Cart, CartItem
 
 
 class CartDetailView(CartSessionMixin, TemplateView):

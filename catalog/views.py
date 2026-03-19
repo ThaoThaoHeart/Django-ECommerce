@@ -59,20 +59,29 @@ class ProductDetailView(CartSessionMixin, DetailView):
 		if not form.is_valid():
 			return self.render_to_response(self.get_context_data(form=form))
 
-		cart_item, created = CartItem.objects.get_or_create(
-			cart=self.get_or_create_cart(),
-			product=self.object,
-			defaults={"quantity": 0},
-		)
-		cart_item.quantity = form.cleaned_data["quantity"] if created else cart_item.quantity + form.cleaned_data["quantity"]
-		cart_item.save()
-
 		selected_variations = [
 			value for key, value in form.cleaned_data.items()
 			if key.startswith("variation_") and value is not None
 		]
-		if selected_variations:
-			cart_item.variations.set(selected_variations)
+		cart = self.get_or_create_cart()
+		cart_item = CartItem.find_matching_item(
+			cart=cart,
+			product=self.object,
+			variations=selected_variations,
+		)
+
+		quantity_to_add = form.cleaned_data["quantity"]
+		if cart_item:
+			cart_item.quantity += quantity_to_add
+			cart_item.save(update_fields=["quantity"])
+		else:
+			cart_item = CartItem.objects.create(
+				cart=cart,
+				product=self.object,
+				quantity=quantity_to_add,
+			)
+			if selected_variations:
+				cart_item.variations.set(selected_variations)
 
 		return redirect("carts:cart_detail")
-	
+        

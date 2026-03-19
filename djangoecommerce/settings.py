@@ -127,3 +127,13 @@ AUTHENTICATION_BACKENDS = [
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'home'
+
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'  # recommended
+SESSION_COOKIE_AGE = 1209600  # how long the cart lives — 2 weeks in seconds
+SESSION_SAVE_EVERY_REQUEST = False  # only save when modified, better performance
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    }
+}

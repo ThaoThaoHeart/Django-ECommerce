@@ -2,16 +2,30 @@ from .models import Cart
 
 
 class CartSessionMixin:
-	def get_cart_id(self):
-		cart = self.request.session.session_key
-		if not cart:
+	cart_session_key = "cart_id"
+
+	def get_session_cart_id(self):
+		cart_id = self.request.session.get(self.cart_session_key)
+		if cart_id:
+			return cart_id
+
+		if not self.request.session.session_key:
 			self.request.session.create()
-			cart = self.request.session.session_key
-		return cart
+
+		cart_id = self.request.session.session_key
+		self.request.session[self.cart_session_key] = cart_id
+		return cart_id
 
 	def get_cart(self):
-		return Cart.objects.get(cart_id=self.get_cart_id())
+		cart_id = self.get_session_cart_id()
+		cart = Cart.objects.filter(cart_id=cart_id).order_by("id").first()
+		if cart is None:
+			raise Cart.DoesNotExist
+		return cart
 
 	def get_or_create_cart(self):
-		cart, _ = Cart.objects.get_or_create(cart_id=self.get_cart_id())
-		return cart
+		cart_id = self.get_session_cart_id()
+		cart = Cart.objects.filter(cart_id=cart_id).order_by("id").first()
+		if cart:
+			return cart
+		return Cart.objects.create(cart_id=cart_id)
