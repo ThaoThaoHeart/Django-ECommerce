@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from carts.models import Cart
 
 
 class UserManager(BaseUserManager):
@@ -31,3 +32,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
 	def __str__(self):
 		return self.email
+
+	def get_cart(self):
+		cart, _ = Cart.objects.get_or_create(user=self)
+		return cart

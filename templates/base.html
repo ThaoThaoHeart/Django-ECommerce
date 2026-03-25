@@ -14,7 +14,16 @@
                 <ul class="flex items-center gap-6">
                     <li><a href="{% url 'home' %}" class="hover:text-red-400">Home</a></li>
                     <li><a href="{% url 'catalog:product_list' %}" class="hover:text-red-400">Products</a></li>
-                    <li><a href="{% url 'carts:cart_detail' %}" class="hover:text-red-400">Cart</a></li>
+                    <li>
+                        <a href="{% url 'carts:cart_detail' %}" class="hover:text-red-400 inline-flex items-center gap-2">
+                            <span>Cart</span>
+                            {% if cart_count %}
+                                <span class="inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
+                                    {{ cart_count }}
+                                </span>
+                            {% endif %}
+                        </a>
+                    </li>
                     {% if request.user.is_authenticated %}
                         <li><a href="{% url 'profile' %}" class="text-white hover:text-red-400">Profile</a></li>
                         <li>

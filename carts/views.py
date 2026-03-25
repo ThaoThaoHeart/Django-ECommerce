@@ -2,7 +2,8 @@ from django.shortcuts import redirect
 from django.views.generic import DeleteView, RedirectView, TemplateView, UpdateView
 from django.urls import reverse_lazy
 from .mixins import CartSessionMixin
-from .models import Cart, CartItem
+from .models import CartItem
+from catalog.models import Product
 
 
 class CartDetailView(CartSessionMixin, TemplateView):
@@ -11,25 +12,30 @@ class CartDetailView(CartSessionMixin, TemplateView):
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)
 		cart_items = []
-		total = 0
 		quantity = 0
 
-		try:
-			cart = self.get_cart()
-			cart_items = CartItem.objects.filter(cart=cart).select_related("product").prefetch_related("variations")
+		cart = self.get_cart()
+		if cart is not None:
+			cart_items = list(CartItem.objects.filter(cart=cart))
+			product_titles = [item.product_title for item in cart_items]
+			products = Product.objects.filter(name__in=product_titles)
+			product_prices = {}
 
+			for product in products:
+				product_prices[product.name] = product.price
+				
 			for item in cart_items:
-				item.sub_total = item.product.price * item.quantity
-				total += item.sub_total
 				quantity += item.quantity
-		except Cart.DoesNotExist:
-			pass
+				item.price = product_prices.get(item.product_title)
+				item.line_total = item.price * item.quantity if item.price is not None else None
+		
+		total = sum(item.line_total for item in cart_items if item.line_total is not None)
 
 		context.update(
-			{
+			{	
 				"cart_items": cart_items,
-				"total": total,
 				"quantity": quantity,
+				"total": total,
 			}
 		)
 		return context
@@ -40,17 +46,17 @@ class CartRemoveView(CartSessionMixin, RedirectView):
 
 	def get_redirect_url(self, *args, **kwargs):
 		item_id = kwargs["item_id"]
-		try:
-			cart = self.get_cart()
-			cart_item = CartItem.objects.select_related("product").get(id=item_id, cart=cart)
-
-			if cart_item.quantity > 1:
-				cart_item.quantity -= 1
-				cart_item.save()
-			else:
-				cart_item.delete()
-		except (Cart.DoesNotExist, CartItem.DoesNotExist):
-			pass
+		cart = self.get_cart()
+		if cart is not None:
+			try:
+				cart_item = CartItem.objects.get(id=item_id, cart=cart)
+				if cart_item.quantity > 1:
+					cart_item.quantity -= 1
+					cart_item.save()
+				else:
+					cart_item.delete()
+			except CartItem.DoesNotExist:
+				pass
 
 		return super().get_redirect_url(*args, **kwargs)
 
@@ -62,20 +68,18 @@ class CartUpdateView(CartSessionMixin, UpdateView):
 	success_url = reverse_lazy("carts:cart_detail")
 
 	def get_queryset(self):
-		try:
-			cart = self.get_cart()
-		except Cart.DoesNotExist:
+		cart = self.get_cart()
+		if cart is None:
 			return CartItem.objects.none()
-		return CartItem.objects.select_related("product").filter(cart=cart)
+		return CartItem.objects.filter(cart=cart)
 
 	def get(self, request, *args, **kwargs):
 		return redirect("carts:cart_detail")
 
 	def form_valid(self, form):
-		product = form.instance.product
 		raw_quantity = form.cleaned_data.get("quantity", 1)
 		try:
-			form.instance.quantity = min(max(1, int(raw_quantity)), product.stock)
+			form.instance.quantity = max(1, int(raw_quantity))
 		except (TypeError, ValueError):
 			form.instance.quantity = 1
 		return super().form_valid(form)
@@ -90,9 +94,8 @@ class CartRemoveItemView(CartSessionMixin, DeleteView):
 	success_url = reverse_lazy("carts:cart_detail")
 
 	def get_queryset(self):
-		try:
-			cart = self.get_cart()
-		except (Cart.DoesNotExist, CartItem.DoesNotExist):
+		cart = self.get_cart()
+		if cart is None:
 			return CartItem.objects.none()
 		return CartItem.objects.filter(cart=cart)
 

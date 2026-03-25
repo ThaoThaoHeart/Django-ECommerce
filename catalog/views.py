@@ -1,7 +1,6 @@
 from django.core.paginator import Paginator
 from django.views.generic import DetailView
-from django.shortcuts import render
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from carts.forms import CartAddForm
 from carts.mixins import CartSessionMixin
 from carts.models import CartItem
@@ -59,29 +58,33 @@ class ProductDetailView(CartSessionMixin, DetailView):
 		if not form.is_valid():
 			return self.render_to_response(self.get_context_data(form=form))
 
-		selected_variations = [
-			value for key, value in form.cleaned_data.items()
-			if key.startswith("variation_") and value is not None
-		]
-		cart = self.get_or_create_cart()
-		cart_item = CartItem.find_matching_item(
-			cart=cart,
-			product=self.object,
-			variations=selected_variations,
-		)
+		selected_variations = []
+		for field_name, value in form.cleaned_data.items():
+			if field_name.startswith("variation_") and value is not None:
+				category = field_name.replace("variation_", "", 1).replace("_", " ").title()
+				selected_variations.append(f"{category}: {value.variation_value}")
+		selected_variations_text = ", ".join(selected_variations)
 
+		cart = self.get_or_create_cart()
+		if cart is None:
+			return redirect("catalog:product_detail", pk=self.object.pk)
+
+		cart_item = CartItem.objects.filter(
+			cart=cart,
+			product_title=self.object.name,
+			selected_variations=selected_variations_text,
+		).first()
 		quantity_to_add = form.cleaned_data["quantity"]
 		if cart_item:
-			cart_item.quantity += quantity_to_add
+			cart_item.quantity = min(cart_item.quantity + quantity_to_add, self.object.stock)
 			cart_item.save(update_fields=["quantity"])
 		else:
-			cart_item = CartItem.objects.create(
+			CartItem.objects.create(
 				cart=cart,
-				product=self.object,
+				product_title=self.object.name,
+				selected_variations=selected_variations_text,
 				quantity=quantity_to_add,
 			)
-			if selected_variations:
-				cart_item.variations.set(selected_variations)
 
 		return redirect("carts:cart_detail")
         

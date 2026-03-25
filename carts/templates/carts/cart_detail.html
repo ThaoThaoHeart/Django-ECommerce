@@ -12,23 +12,21 @@
                 {% for item in cart_items %}
                     <div class="p-4 md:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div class="flex-1">
-                            <h2 class="text-xl font-semibold text-gray-900">{{ item.product.name }}</h2>
-                            <p class="text-sm text-gray-600 mt-1">Unit price: ${{ item.product.price }}</p>
-                            {% if item.variations.all %}
-                                <p class="text-sm text-gray-700 mt-1">
-                                    {% for variation in item.variations.all %}
-                                        {{ variation.variation_category|title }}: {{ variation.variation_value }}{% if not forloop.last %}, {% endif %}
-                                    {% endfor %}
-                                </p>
+                            <h2 class="text-xl font-semibold text-gray-900">{{ item.product_title }}</h2>
+                            {% if item.selected_variations %}
+                                <p class="text-sm text-gray-700 mt-1">Options: {{ item.selected_variations }}</p>
                             {% endif %}
                             <p class="text-sm text-gray-700 mt-1">Quantity: {{ item.quantity }}</p>
-                            <p class="text-lg font-bold text-red-600 mt-2">Subtotal: ${{ item.sub_total }}</p>
+                            {% if item.price %}
+                                <p class="text-sm text-gray-700 mt-1">${{ item.price }} each</p>
+                                <p class="text-sm font-semibold text-gray-900 mt-1">Subtotal: ${{ item.line_total }}</p>
+                            {% endif %}
                         </div>
 
                         <div class="flex items-center gap-2">
                             <form method="post" action="{% url 'carts:cart_update' item.id %}" class="flex items-center gap-2">
                                 {% csrf_token %}
-                                <input type="number" name="quantity" value="{{ item.quantity }}" min="1" max="{{ item.product.stock }}" class="w-20 px-2 py-2 border border-gray-300 rounded-lg" onchange="this.form.submit()" required>
+                                <input type="number" name="quantity" value="{{ item.quantity }}" min="1" class="w-20 px-2 py-2 border border-gray-300 rounded-lg" onchange="this.form.submit()" required>
                                 <noscript>
                                     <button type="submit" class="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
                                         Update
@@ -51,9 +49,9 @@
                     <span class="font-medium text-gray-700">Items</span>
                     <span class="font-semibold text-gray-900">{{ quantity }}</span>
                 </div>
-                <div class="flex justify-between text-2xl">
-                    <span class="font-bold text-gray-800">Total</span>
-                    <span class="font-bold text-red-600">${{ total }}</span>
+                <div class="flex justify-between text-lg mb-2">
+                    <span class="font-medium text-gray-700">Total</span>
+                    <span class="font-semibold text-gray-900">${{ total }}</span>
                 </div>
                 <a href="{% url 'login' %}" class="mt-4 inline-block w-full text-center bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition">
                     Checkout
