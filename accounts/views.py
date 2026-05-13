@@ -12,31 +12,35 @@ class RegisterView(FormView):
 	success_url = reverse_lazy("login")
 
 	def form_valid(self, form):
-		user = form.save()
-		self.transfer_anonymous_cart(user)
+		form.save()
 		return super().form_valid(form)
-
-	def transfer_anonymous_cart(self, user):
-		session_key = self.request.session.session_key
-
-		try:
-			anonymous_cart = Cart.objects.get(session_key=session_key, user__isnull=True)
-			
-			user_cart, _ = Cart.objects.get_or_create(user=user)
-
-			for item in anonymous_cart.items.all():
-				item.cart = user_cart
-				item.save()
-			
-			anonymous_cart.delete()
-		except Cart.DoesNotExist:
-			return
 		
 
 class UserLoginView(LoginView):
 	template_name = "login.html"
 	authentication_form = EmailAuthenticationForm
 	redirect_authenticated_user = True
+
+	def form_valid(self, form):
+		self.transfer_anonymous_cart(form.get_user())
+		return super().form_valid(form)
+
+	def transfer_anonymous_cart(self, user):
+		# If a user cart already exists, preserve it and skip anonymous transfer.
+		if Cart.objects.filter(user=user).exists():
+			return
+
+		session_key = self.request.session.session_key
+		if not session_key:
+			return
+
+		anonymous_cart = Cart.objects.filter(session_key=session_key, user__isnull=True).first()
+		if not anonymous_cart:
+			return
+
+		anonymous_cart.user = user
+		anonymous_cart.session_key = None
+		anonymous_cart.save(update_fields=["user", "session_key"])
 
 	def get_success_url(self):
 		return reverse_lazy("home")

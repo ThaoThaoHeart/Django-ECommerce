@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}Checkout - Confirmation{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-6xl">
+    <h1 class="text-3xl font-bold text-gray-900 mb-2">Checkout Step 4</h1>
+    <p class="text-gray-600 mb-6">Confirm details and place order.</p>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 space-y-6">
+            <section class="bg-white rounded-lg shadow-md p-4 md:p-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-xl font-semibold text-gray-900">Billing</h2>
+                    <a href="{% url 'carts:checkout_billing' %}" class="text-red-600 hover:text-red-800 font-medium">Edit</a>
+                </div>
+                <p class="text-gray-700">{{ billing.full_name }}</p>
+                <p class="text-gray-700">{{ billing.address_line_1 }}</p>
+                {% if billing.address_line_2 %}<p class="text-gray-700">{{ billing.address_line_2 }}</p>{% endif %}
+                <p class="text-gray-700">{{ billing.city }} {{ billing.postal_code }}</p>
+                <p class="text-gray-700">{{ billing.country }}</p>
+            </section>
+
+            <section class="bg-white rounded-lg shadow-md p-4 md:p-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-xl font-semibold text-gray-900">Shipping</h2>
+                    <a href="{% url 'carts:checkout_billing' %}" class="text-red-600 hover:text-red-800 font-medium">Edit</a>
+                </div>
+                <p class="text-gray-700">{{ shipping.full_name }}</p>
+                <p class="text-gray-700">{{ shipping.address_line_1 }}</p>
+                {% if shipping.address_line_2 %}<p class="text-gray-700">{{ shipping.address_line_2 }}</p>{% endif %}
+                <p class="text-gray-700">{{ shipping.city }} {{ shipping.postal_code }}</p>
+                <p class="text-gray-700">{{ shipping.country }}</p>
+            </section>
+
+            <section class="bg-white rounded-lg shadow-md p-4 md:p-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-xl font-semibold text-gray-900">Payment</h2>
+                    <a href="{% url 'carts:checkout_payment' %}" class="text-red-600 hover:text-red-800 font-medium">Edit</a>
+                </div>
+                <p class="text-gray-700">{{ payment.cardholder_name }}</p>
+                <p class="text-gray-700">Card ending in {{ payment.card_number }}</p>
+                <p class="text-gray-700">Expiry {{ payment.expiry_month }}/{{ payment.expiry_year }}</p>
+            </section>
+        </div>
+
+        <aside class="bg-white rounded-lg shadow-md p-4 md:p-6 h-fit">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Summary</h2>
+            <div class="space-y-2 text-sm">
+                <div class="flex justify-between"><span class="text-gray-600">Items</span><span>{{ quantity }}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Subtotal</span><span>${{ subtotal }}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Tax</span><span>${{ tax_amount }}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Shipping</span><span>${{ shipping_cost }}</span></div>
+                <div class="flex justify-between pt-2 border-t border-gray-200 text-base font-semibold"><span>Total</span><span>${{ grand_total }}</span></div>
+            </div>
+
+            <form method="post" class="mt-6 space-y-3">
+                {% csrf_token %}
+                {{ form.non_field_errors }}
+                {% for hidden_field in form.hidden_fields %}
+                    {{ hidden_field }}
+                {% endfor %}
+                <label class="inline-flex items-start gap-2 text-sm text-gray-700">
+                    {{ form.confirm }}
+                    <span>{{ form.confirm.label }}</span>
+                </label>
+                {% if form.confirm.errors %}<p class="text-sm text-red-600">{{ form.confirm.errors|join:', ' }}</p>{% endif %}
+                <button type="submit" class="w-full bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition">Place Order</button>
+            </form>
+        </aside>
+    </div>
+</div>
+{% endblock %}
