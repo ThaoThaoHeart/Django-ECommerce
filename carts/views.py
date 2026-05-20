@@ -85,6 +85,7 @@ class CheckoutCartView(LoginRequiredMixin, CartSessionMixin, FormView):
 	login_url = reverse_lazy("login")
 
 	def dispatch(self, request, *args, **kwargs):
+		#Gate entry: if the cart is empty, send the user back to cart details.
 		cart_items, _, _ = self.get_cart().snapshot()
 		if not cart_items:
 			return redirect("carts:cart_detail")
@@ -98,6 +99,7 @@ class CheckoutCartView(LoginRequiredMixin, CartSessionMixin, FormView):
 		return initial
 
 	def form_valid(self, form):
+		#Persist province choice and advance to billing.
 		checkout = CheckoutSessionState(self.request)
 		checkout.update({"province": form.cleaned_data["province"]})
 		return redirect("carts:checkout_billing")
@@ -135,10 +137,6 @@ class CheckoutBillingView(LoginRequiredMixin, TemplateView):
 			initial_value = option_form.fields["same_as_billing"].initial
 		return bool(initial_value)
 
-	def dispatch(self, request, *args, **kwargs):
-		if not CheckoutSessionState(request).get("province"):
-			return redirect("carts:checkout_cart")
-		return super().dispatch(request, *args, **kwargs)
 
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)
@@ -180,11 +178,6 @@ class CheckoutPaymentView(LoginRequiredMixin, FormView):
 	form_class = PaymentForm
 	login_url = reverse_lazy("login")
 
-	def dispatch(self, request, *args, **kwargs):
-		checkout_data = CheckoutSessionState(request).data()
-		if not checkout_data.get("billing") or not checkout_data.get("shipping"):
-			return redirect("carts:checkout_billing")
-		return super().dispatch(request, *args, **kwargs)
 
 	def get_initial(self):
 		initial = super().get_initial()
@@ -205,12 +198,6 @@ class CheckoutConfirmationView(LoginRequiredMixin, CartSessionMixin, FormView):
 	template_name = "carts/checkout_confirmation.html"
 	form_class = ConfirmationForm
 	login_url = reverse_lazy("login")
-
-	def dispatch(self, request, *args, **kwargs):
-		checkout_data = CheckoutSessionState(request).data()
-		if not checkout_data.get("payment"):
-			return redirect("carts:checkout_payment")
-		return super().dispatch(request, *args, **kwargs)
 
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)
@@ -236,7 +223,6 @@ class CheckoutConfirmationView(LoginRequiredMixin, CartSessionMixin, FormView):
 		return context
 
 	def form_valid(self, form):
-		# Basic flow: clear cart and checkout session after confirmation.
 		self.get_cart().clear_items()
 		CheckoutSessionState(self.request).clear()
 		return redirect("carts:cart_detail")
