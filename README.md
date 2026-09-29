@@ -46,3 +46,4 @@ cd frontend && npm test           # React (Vitest)
 | `checkout/validate/` | POST | Validate the `sections` of one checkout step |
 | `checkout/` | POST | Place the order (login required) |
 | `orders/`, `orders/<id>/` | GET | The current user's orders |
+
