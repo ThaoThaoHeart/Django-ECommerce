@@ -1,53 +1,54 @@
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.views import LoginView, LogoutView
-from django.urls import reverse_lazy
-from django.views.generic import FormView, TemplateView
+from django.contrib.auth import login, logout
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
+from carts.services import merge_session_cart
+from djangoecommerce.api import form_errors
 from .forms import CustomUserCreationForm, EmailAuthenticationForm
-from carts.models import Cart
+from .serializers import UserSerializer
 
-class RegisterView(FormView):
-	template_name = "registration/register.html"
-	form_class = CustomUserCreationForm
-	success_url = reverse_lazy("login")
 
-	def form_valid(self, form):
-		form.save()
-		return super().form_valid(form)
-		
+def user_response(request, status_code=status.HTTP_200_OK):
+	user = UserSerializer(request.user).data if request.user.is_authenticated else None
+	return Response({"user": user}, status=status_code)
 
-class UserLoginView(LoginView):
-	template_name = "login.html"
-	authentication_form = EmailAuthenticationForm
-	redirect_authenticated_user = True
 
-	def form_valid(self, form):
-		self.transfer_anonymous_cart(form.get_user())
-		return super().form_valid(form)
+def log_in(request, user):
+	# The anonymous cart is keyed by session, so merge it before login() rotates the session key.
+	merge_session_cart(request, user)
+	login(request, user)
 
-	def transfer_anonymous_cart(self, user):
-		# If a user cart already exists, preserve it and skip anonymous transfer.
-		if Cart.objects.filter(user=user).exists():
-			return
 
-		session_key = self.request.session.session_key
-		if not session_key:
-			return
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class MeView(APIView):
+	"""The SPA calls this on load: it returns the current user and sets the CSRF cookie."""
 
-		anonymous_cart = Cart.objects.filter(session_key=session_key, user__isnull=True).first()
-		if not anonymous_cart:
-			return
+	def get(self, request):
+		return user_response(request)
 
-		anonymous_cart.user = user
-		anonymous_cart.session_key = None
-		anonymous_cart.save(update_fields=["user", "session_key"])
 
-	def get_success_url(self):
-		return reverse_lazy("home")
+class LoginView(APIView):
+	def post(self, request):
+		form = EmailAuthenticationForm(request, data={"username": request.data.get("email"), "password": request.data.get("password")})
+		if not form.is_valid():
+			return Response({"errors": form_errors(form)}, status=status.HTTP_400_BAD_REQUEST)
+		log_in(request, form.get_user())
+		return user_response(request)
 
-class UserLogoutView(LogoutView):
-	next_page = reverse_lazy("home")
 
-class ProfileView(LoginRequiredMixin, TemplateView):
-	template_name = "profile.html"
-	login_url = reverse_lazy("login")
+class RegisterView(APIView):
+	def post(self, request):
+		form = CustomUserCreationForm(data=request.data)
+		if not form.is_valid():
+			return Response({"errors": form_errors(form)}, status=status.HTTP_400_BAD_REQUEST)
+		log_in(request, form.save())
+		return user_response(request, status.HTTP_201_CREATED)
+
+
+class LogoutView(APIView):
+	def post(self, request):
+		logout(request)
+		return user_response(request)

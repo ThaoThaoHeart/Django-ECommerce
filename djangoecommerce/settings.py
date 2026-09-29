@@ -15,6 +15,9 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# The Vite dev server proxies /api here; Django's CSRF check needs to trust the browser's origin.
+CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
+
 
 # Application definition
 
@@ -25,7 +28,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-	'django_extensions',
+    'django_extensions',
+    'rest_framework',
     'accounts',
     'catalog',
     'carts',
@@ -46,15 +50,13 @@ ROOT_URLCONF = 'djangoecommerce.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': ['templates'],
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
-                'django.template.context_processors.csrf',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-				'carts.context_processors.cart_item_count',
             ],
         },
     },
@@ -122,17 +124,14 @@ DEFAULT_FROM_EMAIL = 'noreply@example.com'
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
 
-AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
-]
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': ['djangoecommerce.api.CsrfEnforcedSessionAuthentication'],
+    'DEFAULT_PAGINATION_CLASS': 'djangoecommerce.api.PageNumberPaginationWithTotals',
+    'PAGE_SIZE': 9,
+}
 
-LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = 'home'
-LOGOUT_REDIRECT_URL = 'home'
-
-SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'  # recommended
-SESSION_COOKIE_AGE = 1209600  # how long the cart lives — 2 weeks in seconds
-SESSION_SAVE_EVERY_REQUEST = False  # only save when modified, better performance
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
+SESSION_COOKIE_AGE = 1209600  # how long an anonymous cart lives — 2 weeks in seconds
 
 CACHES = {
     'default': {

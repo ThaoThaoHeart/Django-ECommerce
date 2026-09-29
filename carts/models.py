@@ -1,90 +1,112 @@
 from decimal import Decimal
+
+from django.conf import settings
 from django.db import models
 
-
-PROVINCE_TAX_RATES = {
-	"ON": Decimal("0.13"),
-	"BC": Decimal("0.12"),
-	"AB": Decimal("0.05"),
-	"QC": Decimal("0.14975"),
-	"MB": Decimal("0.12"),
-	"SK": Decimal("0.11"),
-	"NS": Decimal("0.15"),
-	"NB": Decimal("0.15"),
-	"NL": Decimal("0.15"),
-	"PE": Decimal("0.15"),
-}
-
-PROVINCE_SHIPPING_COSTS = {
-	"ON": Decimal("0.00"),
-	"BC": Decimal("12.00"),
-	"AB": Decimal("10.00"),
-	"QC": Decimal("9.00"),
-	"MB": Decimal("11.00"),
-	"SK": Decimal("11.00"),
-	"NS": Decimal("14.00"),
-	"NB": Decimal("14.00"),
-	"NL": Decimal("16.00"),
-	"PE": Decimal("14.00"),
-}
+from catalog.models import Product
+from .constants import CENT, PROVINCE_CHOICES, PROVINCES
 
 
 class Cart(models.Model):
-	user = models.ForeignKey("accounts.CustomUser", on_delete=models.CASCADE, null=True, blank=True)
+	user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
 	session_key = models.CharField(max_length=40, null=True, blank=True)
 
-	def cart_count(self):
-		count = self.items.count()
-		return count if count > 0 else 0
+	def add(self, product_title, selected_variations, quantity, max_quantity=None):
+		item, _ = self.items.get_or_create(
+			product_title=product_title,
+			selected_variations=selected_variations,
+			defaults={"quantity": 0},
+		)
+		item.quantity += quantity
+		if max_quantity is not None:
+			item.quantity = min(item.quantity, max_quantity)
+		item.save(update_fields=["quantity"])
+		return item
 
-	def priced_items(self):
-		from catalog.models import Product
+	def merge(self, other):
+		for item in other.items.all():
+			self.add(item.product_title, item.selected_variations, item.quantity)
+		other.delete()
 
-		cart_items = list(self.items.all())
-		if not cart_items:
-			return cart_items
+	def summary(self, province=None):
+		"""Price every line against the live catalog and compute order totals.
 
-		product_titles = [item.product_title for item in cart_items]
-		products = Product.objects.filter(name__in=product_titles)
-		product_prices = {product.name: product.price for product in products}
+		Lines whose product is gone or short on stock get an `error` message and block checkout.
+		"""
+		items = list(self.items.order_by("pk"))
+		products = Product.objects.active().filter(name__in=[item.product_title for item in items])
+		products_by_name = {product.name: product for product in products}
 
-		for item in cart_items:
-			item.price = product_prices.get(item.product_title, Decimal("0.00"))
-			item.line_total = item.price * item.quantity
+		for item in items:
+			item.product = products_by_name.get(item.product_title)
+			item.unit_price = item.product.price if item.product else Decimal("0.00")
+			item.line_total = item.unit_price * item.quantity
+			if not item.product or not item.product.is_in_stock():
+				item.error = "This product is no longer available."
+			elif item.quantity > item.product.stock:
+				item.error = f"Only {item.product.stock} left in stock."
+			else:
+				item.error = ""
 
-		return cart_items
+		subtotal = sum((item.line_total for item in items), Decimal("0.00"))
+		_, tax_rate, shipping_cost = PROVINCES.get(province, (None, Decimal("0"), Decimal("0.00")))
+		tax = (subtotal * tax_rate).quantize(CENT)
+		return {
+			"items": items,
+			"item_count": sum(item.quantity for item in items),
+			"has_errors": any(item.error for item in items),
+			"province": province,
+			"subtotal": subtotal,
+			"tax": tax,
+			"shipping_cost": shipping_cost,
+			"total": subtotal + tax + shipping_cost,
+		}
 
-	def snapshot(self):
-		cart_items = self.priced_items()
-		quantity = sum((item.quantity for item in cart_items), 0)
-		subtotal = sum((item.line_total for item in cart_items), Decimal("0.00"))
-		return cart_items, quantity, subtotal
 
-	@staticmethod
-	def tax_shipping_total(subtotal, province_code):
-		rate = PROVINCE_TAX_RATES.get(province_code, Decimal("0.00"))
-		tax_amount = (subtotal * rate).quantize(Decimal("0.01"))
-		shipping_cost = PROVINCE_SHIPPING_COSTS.get(province_code, Decimal("0.00")).quantize(Decimal("0.01"))
-		grand_total = (subtotal + tax_amount + shipping_cost).quantize(Decimal("0.01"))
-		return tax_amount, shipping_cost, grand_total
-
-	def decrement_or_remove_item(self, item_id):
-		try:
-			cart_item = self.items.get(id=item_id)
-		except CartItem.DoesNotExist:
-			return
-
-		if cart_item.quantity > 1:
-			cart_item.quantity -= 1
-			cart_item.save(update_fields=["quantity"])
-		else:
-			cart_item.delete()
-
-	def clear_items(self):
-		self.items.all().delete()
-        
 class CartItem(models.Model):
 	cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name="items")
 	product_title = models.CharField(max_length=250)
 	selected_variations = models.CharField(max_length=500, blank=True, default="")
 	quantity = models.PositiveIntegerField(default=1)
+
+	def __str__(self):
+		return f"{self.quantity} x {self.product_title}"
+
+
+class Order(models.Model):
+	user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="orders")
+	created_at = models.DateTimeField(auto_now_add=True)
+	province = models.CharField(max_length=2, choices=PROVINCE_CHOICES)
+	billing_address = models.JSONField()
+	shipping_address = models.JSONField()
+	cardholder_name = models.CharField(max_length=200)
+	card_last4 = models.CharField(max_length=4)
+	subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+	tax = models.DecimalField(max_digits=10, decimal_places=2)
+	shipping_cost = models.DecimalField(max_digits=10, decimal_places=2)
+	total = models.DecimalField(max_digits=10, decimal_places=2)
+
+	class Meta:
+		ordering = ["-created_at"]
+
+	def __str__(self):
+		return f"Order #{self.number}"
+
+	@property
+	def number(self):
+		return f"{self.pk:06d}"
+
+	def item_count(self):
+		return sum(item.quantity for item in self.items.all())
+
+
+class OrderItem(models.Model):
+	order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
+	product_title = models.CharField(max_length=250)
+	selected_variations = models.CharField(max_length=500, blank=True, default="")
+	unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+	quantity = models.PositiveIntegerField()
+
+	@property
+	def line_total(self):
+		return self.unit_price * self.quantity
